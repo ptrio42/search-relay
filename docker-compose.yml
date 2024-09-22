@@ -1,0 +1,35 @@
+
+services:
+  relay:
+    container_name: search-relay
+    build:
+      context: .
+      dockerfile: ./docker/relay/Dockerfile
+    env_file:
+      - .env
+    ports:
+      - "3337:3337"
+  es:
+    build: ./docker/es
+    container_name: search-es
+    env_file:
+      - .env
+    environment:
+      - "discovery.type=single-node"
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+      - "ELASTIC_PASSWORD=${ELASTIC_PASSWORD}"
+      - "http.cors.enabled=true"
+      - 'http.cors.allow-origin="*"'
+      - "xpack.security.http.ssl.enabled=false"
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    ports:
+      - "9200:9200"
+    volumes:
+      - es-data:/usr/share/elasticsearch/data
+    restart: always
+volumes:
+  es-data:
+    driver: local
