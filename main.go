@@ -1,17 +1,28 @@
 package main
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"github.com/fiatjaf/eventstore/elasticsearch"
 	"github.com/fiatjaf/eventstore/lmdb"
 	"github.com/fiatjaf/khatru"
 	"github.com/joho/godotenv"
 	"github.com/nbd-wtf/go-nostr"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
 )
+
+type RequestPayload struct {
+	Text string `json:"text"`
+}
+
+type ResponsePayload struct {
+	Result interface{} `json:"result"`
+}
 
 func main() {
 	godotenv.Load(".env")
@@ -46,6 +57,17 @@ func main() {
 	})
 	relay.DeleteEvent = append(relay.DeleteEvent, db.DeleteEvent, search.DeleteEvent)
 	relay.CountEvents = append(relay.CountEvents, db.CountEvents)
+	relay.RejectEvent = append(relay.RejectEvent, func(ctx context.Context, event *nostr.Event) (reject bool, msg string) {
+
+		if len(event.Tags) > 4 {
+			return true, "Too many tags. 4 max"
+		}
+
+		if !isQuestion(event.Content) {
+			return true, "Not a question"
+		}
+		return false, ""
+	})
 
 	fmt.Println("running on :3337")
 
@@ -58,4 +80,42 @@ func getEnv(key string) string {
 		log.Fatalf("Environment variable %s not set", key)
 	}
 	return value
+}
+
+func isQuestion(imageUrl string) bool {
+	payload := RequestPayload{
+		Text: imageUrl,
+	}
+
+	jsonData, err := json.Marshal(payload)
+	if err != nil {
+		fmt.Printf("Error marshaling JSON: %v\n", err)
+		return false
+	}
+
+	resp, err := http.Post("http://@node:3006/classify-text", "application/json", bytes.NewBuffer(jsonData))
+	if err != nil {
+		fmt.Printf("Error making request: %v\n", err)
+		return false
+	}
+	defer resp.Body.Close()
+
+	// Read the response body
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		fmt.Printf("Error reading response: %v\n", err)
+		return false
+	}
+
+	// Parse the response JSON
+	var responsePayload ResponsePayload
+	err = json.Unmarshal(body, &responsePayload)
+	if err != nil {
+		fmt.Printf("Error parsing JSON response: %v\n", err)
+		return false
+	}
+
+	// Print the result from the Node.js worker
+	fmt.Printf("Result from node.js: %+v\n", responsePayload.Result)
+	return responsePayload.Result == true
 }

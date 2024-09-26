@@ -39,6 +39,15 @@ services:
       es:
         condition: service_healthy
 
+  node:
+    build:
+      context: .
+      dockerfile: ./docker/node/Dockerfile
+    container_name: search-node
+    ports:
+      - "3006:3006"
+    restart: always
+
 volumes:
   es-data:
     driver: local
