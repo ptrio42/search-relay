@@ -12,13 +12,13 @@ services:
       - "http.cors.enabled=true"
       - 'http.cors.allow-origin="*"'
       - "xpack.security.http.ssl.enabled=false"
-      - "http:port=9200"
+      - "http:port=9202"
     ulimits:
       memlock:
         soft: -1
         hard: -1
     ports:
-      - "9200:9200"
+      - "9202:9202"
     volumes:
       - es-data:/usr/share/elasticsearch/data
     restart: always
