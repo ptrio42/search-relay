@@ -29,9 +29,9 @@ func main() {
 
 	relay := khatru.NewRelay()
 
-	relay.Info.Name = "Swarmstr Search Relay"
+	relay.Info.Name = "Swarmstr Question-Only Search Relay"
 	relay.Info.PubKey = "f1f9b0996d4ff1bf75e79e4cc8577c89eb633e68415c7faf74cf17a07bf80bd8"
-	relay.Info.Icon = ""
+	relay.Info.Icon = "https://image.nostr.build/191da0052d50ae4c937c9fc3361bb514523bbc37f41ae4c5ff5e1fc995bddd2d.png"
 
 	db := lmdb.LMDBBackend{Path: "./db"}
 	if err := db.Init(); err != nil {
