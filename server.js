@@ -19,21 +19,54 @@ class Pipeline {
 }
 
 const app = express();
-
-const question_labels = ["clear factual question", "yes/no question", "open-ended question", "vague question", "contextual inquiry"];
-
 app.use(express.json());
 
-const cleanString = (str) => {
+const SCORE_THRESHOLD = 0.4;
+const SCORE_INCREMENT = 0.05;
+
+const containsInterrogativeWord = (sentence) => {
+    // List of common interrogative words
+    const interrogativeWords = [
+        "what", "how", "why", "when", "where", "who",
+        "which", "is", "are", "can", "could", "would", "should"
+    ];
+
+    // Check if any interrogative word is present in the beginning of a sentence
+    return interrogativeWords.some(word => sentence.toLowerCase().startsWith(word));
+}
+
+const endsWithQuestionMark = (sentence) => {
+    // Check if the last character is a question mark
+    return sentence.endsWith('?');
+}
+
+const normalizeText = (str) => {
     // Remove hashtags and newlines, then trim whitespace
-    return str.replace(/#\w+/g, '') // Remove hashtags
-        .replace(/\n/g, ' ') // Replace newlines with space
-        .replace(/\s+/g, ' ') // Replace multiple spaces with a single space
-        .trim();
+    return str.replace(/#\w+/g, "") // remove hashtags
+        .replace(/https?:\/\/[^\s]+|www\.[^\s]+/g, '') // remove urls
+        .replace(/\n/g, " ") // replace newlines with space
+        .replace(/\s+/g, " ") // replace multiple spaces with a single space
+        .replace(/['"]/g, "") // remove single and double quotes
+        .replace(/[~^&*[\]{}|<>]/g, "") // remove special chars
+        .replace(/[\u{1F600}-\u{1F64F}]/gu, "") // remove emojis
+        .replace(/[!?.,;:]{2,}/g, match => match[0]) // replace multiple instances of punctuation marks with a single one
+        .replace(/[^\w\s.,!?;:]/g, '') // remove any other unwanted punctuation characters but keep basic ones: . , ! ? ; :
+        .replace(/nostr:[a-zA-Z0-9]+/g, '[REFERENCE]') // replace bech32 entities references
+        .trim()
+        .toLowerCase();
+}
+
+const classifySentences = async (sentences, candidate_labels, hypothesis_template) => {
+    const classifier = await Pipeline.getInstance();
+
+    const classificationPromises = sentences.map(sentence =>
+        classifier(sentence, candidate_labels, { hypothesis_template})
+    )
+    return await Promise.all(classificationPromises);
 }
 
 app.post("/classify-text", async (req, res) => {
-    const text = cleanString(req.body.text);
+    const text = normalizeText(req.body.text);
     console.log({text});
 
     const tokenizer = new Tokenizer();
@@ -43,24 +76,16 @@ app.post("/classify-text", async (req, res) => {
 
     console.log({sentences});
 
-    const classifier = await Pipeline.getInstance();
-    const candidate_labels = [...question_labels, "statement", "command", "exclamation"];
+    const candidate_labels = ["question", "statement", "command", "exclamation"];
     const hypothesis_template = "This text is a {}.";
 
-    const questions = [];
+    const responses = await classifySentences(sentences, candidate_labels, hypothesis_template);
 
-    for (const sentence of sentences) {
-        const response = await classifier(sentence, candidate_labels, {
-            hypothesis_template: hypothesis_template
-        });
-
-        const {labels, scores} = response;
-
-        if (question_labels.includes(labels[0]) && scores[0] >= 0.4) {
-            console.log("A question!", {response});
-            questions.push([sentence.trim()]);
-        }
-    }
+    const questions = responses.filter((response, index) => {
+        const { labels, scores } = response;
+        console.log('Response', {labels, scores})
+        return labels[0] === "question" && scores[0] >= SCORE_THRESHOLD;
+    }).map((response, index) => sentences[index].trim());
 
     res.json({ result: questions.length > 0 });
 });
