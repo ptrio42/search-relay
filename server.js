@@ -54,11 +54,11 @@ app.post("/classify-text", async (req, res) => {
             hypothesis_template: hypothesis_template
         });
 
-        const {labels} = response;
+        const {labels, score} = response;
 
-        if (question_labels.includes(labels[0])) {
+        if (question_labels.includes(labels[0]) && score >= 0.4) {
             console.log("A question!", {response});
-            questions.push(sentence.trim());
+            questions.push([sentence.trim()]);
         }
     }
 
