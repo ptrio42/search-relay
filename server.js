@@ -21,7 +21,7 @@ class Pipeline {
 const app = express();
 app.use(express.json());
 
-const SCORE_THRESHOLD = 0.4;
+const SCORE_THRESHOLD = 0.5;
 const SCORE_INCREMENT = 0.05;
 
 const containsInterrogativeWord = (sentence) => {
